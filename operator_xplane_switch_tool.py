@@ -1,8 +1,31 @@
+import collections
+
 import bpy
 
 from bpy_types import Panel
 from math import degrees
 
+# manipulators we support in this tool
+
+MANIP_COMMAND_KNOB = "command_knob"
+MANIP_COMMAND_SWITCH_LEFT_RIGHT = "command_switch_left_right"
+MANIP_COMMAND_SWITCH_UP_DOWN = "command_switch_up_down"
+
+MANIPULATORS_COMMAND_POS_NEG = {
+    MANIP_COMMAND_KNOB,
+    MANIP_COMMAND_SWITCH_LEFT_RIGHT,
+    MANIP_COMMAND_SWITCH_UP_DOWN,
+}
+
+MANIP_COMMAND_KNOB2 = "command_knob2"
+MANIP_COMMAND_SWITCH_LEFT_RIGHT2 = "command_switch_left_right2"
+MANIP_COMMAND_SWITCH_UP_DOWN2 = "command_switch_up_down2"
+
+MANIPULATORS_COMMAND_TOGGLE = {
+    MANIP_COMMAND_KNOB2,
+    MANIP_COMMAND_SWITCH_LEFT_RIGHT2,
+    MANIP_COMMAND_SWITCH_UP_DOWN2,
+}
 
 def parent_or_self_with_name(active_object: bpy.types.Object, name: str) -> bpy.types.Object:
     if active_object == None:
@@ -91,6 +114,8 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
         obj = context.object
 
         obj_name = obj.name if obj != None else ''
@@ -111,7 +136,8 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
         box = row.box()
         box.label(text=locator.name if locator != None else '', icon='EDITMODE_HLT')
 
-        row = layout.row()
+        box_outer = layout.box()
+        row = box_outer.row()
         row.label(text='rotator:', icon='OBJECT_DATA')
         box = row.box()
         box.label(text=rotator.name if rotator != None else '', icon='EDITMODE_HLT')
@@ -127,41 +153,79 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
                     for key in fc.keyframe_points:
                         dataref_values.append(round(key.co[1],2))
 
-            box1 = layout.box()
-            box1.label(text='current settings:')
-            row = box1.row()
-            row.label(text='dataref path:')
-            box = row.box()
-            box.label(text=rotator.xplane.datarefs[0].path)
-            row = box1.row()
-            row.label(text='dataref values:')
-            box = row.box()
-            box.label(text=str(dataref_values))
-            row = box1.row()
-            row.label(text='axis rotation angles:')
-            box = row.box()
-            box.label(text=f'{anim_angles}')
+            box_inner = box_outer.box()
+            box_inner.label(text='current settings:')
+            box_inner.use_property_split = True
+            box_inner.use_property_decorate = False
 
-        row = layout.row()
+            if len(rotator.xplane.datarefs) > 0:
+                dr0 = rotator.xplane.datarefs[0]
+
+                row = box_inner.row()
+                row.prop(dr0, 'path', text='dataref path')
+                row = box_inner.row()
+                row.prop(dr0, "anim_type", text='animation type')
+
+                row = box_inner.row()
+                split = row.split(factor=0.4)
+                left_side = split.column(align=True)
+                left_side.alignment  = 'RIGHT'
+                right_side = split.column()
+                left_side.label(text='dataref values:')
+                right_side.label(text=str(dataref_values))
+
+
+                left_side.label(text='axis rotation angles:')
+                right_side.label(text=f'{anim_angles}')
+
+            col = box_outer.column(align=False)
+            col.operator("xplane.switch_rotator_configure", text="Configure Animation")
+
+        box_outer = layout.box()
+        row = box_outer.row()
         row.label(text='manipulator:', icon='OBJECT_DATA')
         box = row.box()
         box.label(text=manipulator.name if manipulator != None else '', icon='EDITMODE_HLT')
 
-        col = layout.column(align=False)
-        # col.operator("mesh.cross_section_add", text="Generate")
+        if manipulator != None:
+            box_inner = box_outer.box()
+            box_inner.label(text='current settings:')
+
+            box_inner.prop(manipulator.xplane.manip, "enabled")
+
+            if manipulator.xplane.manip.enabled:
+                box_inner.prop(manipulator.xplane.manip, "type", text="Type")
+
+                manipType = manipulator.xplane.manip.type
+                box_inner.prop(manipulator.xplane.manip, "cursor", text="Cursor")
+                if manipType != "noop":
+                    box_inner.prop(manipulator.xplane.manip, "tooltip", text="Tooltip")
+
+                if manipType in MANIPULATORS_COMMAND_TOGGLE:
+                    box_inner.prop(manipulator.xplane.manip, "command")
+                elif manipType in MANIPULATORS_COMMAND_POS_NEG:
+                    box_inner.prop(manipulator.xplane.manip, "positive_command")
+                    box_inner.prop(manipulator.xplane.manip, "negative_command")
+
+            #col = box_outer.column(align=False)
+            #col.operator("xplane.switch_manipulator_configure", text="Configure")
 
 
-class OBJECT_OT_ConfigureSwitch(bpy.types.Operator):
-    """Add a cross section"""
-    bl_idname = "xplane.switch_configure"
-    bl_label = "Add cross-section"
+class OBJECT_OT_ConfigureSwitchRotator(bpy.types.Operator):
+    bl_idname = "xplane.switch_rotator_configure"
+    bl_label = "Configure switch rotator animations"
     bl_options = {'REGISTER', 'UNDO'}
 
+class OBJECT_OT_ConfigureSwitchManipulator(bpy.types.Operator):
+    bl_idname = "xplane.switch_manipulator_configure"
+    bl_label = "Configure switch rotator animations"
+    bl_options = {'REGISTER', 'UNDO'}
 
 # Class List
 classes = (
     VIEW3D_PT_XPlaneSwitchUI,
-    OBJECT_OT_ConfigureSwitch
+    OBJECT_OT_ConfigureSwitchRotator,
+    OBJECT_OT_ConfigureSwitchManipulator
 )
 
 

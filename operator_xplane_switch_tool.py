@@ -94,14 +94,14 @@ def find_switch_components(active_object) -> tuple[bpy.types.Object, bpy.types.O
     '''
 
     # up the chain for the locator
-    locator = parent_or_self_with_name(active_object, '_locator')
+    locator = parent_or_self_with_name(active_object, 'locator')
 
     rotator = None
     manipulator = None
 
     if locator != None:
-        rotator = child_or_self_with_name(locator, '_rotator')
-        manipulator = child_or_self_with_name(locator, '_manipulator')
+        rotator = child_or_self_with_name(locator, 'rotator')
+        manipulator = child_or_self_with_name(locator, 'manipulator')
 
     return (locator, rotator, manipulator)
 

@@ -3,7 +3,8 @@ import collections
 import bpy
 
 from bpy_types import Panel
-from math import degrees
+from bpy.props import IntProperty, FloatProperty
+from math import degrees, radians
 
 # manipulators we support in this tool
 
@@ -26,6 +27,7 @@ MANIPULATORS_COMMAND_TOGGLE = {
     MANIP_COMMAND_SWITCH_LEFT_RIGHT2,
     MANIP_COMMAND_SWITCH_UP_DOWN2,
 }
+
 
 def parent_or_self_with_name(active_object: bpy.types.Object, name: str) -> bpy.types.Object:
     if active_object == None:
@@ -148,10 +150,10 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
             for fc in rotator.animation_data.action.fcurves:
                 if fc.data_path.endswith('rotation_axis_angle'):
                     for key in fc.keyframe_points:
-                        anim_angles.append(round(degrees(key.co[1]),2))
+                        anim_angles.append(round(degrees(key.co[1]), 2))
                 elif fc.data_path.endswith('xplane.datarefs[0].value'):
                     for key in fc.keyframe_points:
-                        dataref_values.append(round(key.co[1],2))
+                        dataref_values.append(round(key.co[1], 2))
 
             box_inner = box_outer.box()
             box_inner.label(text='current settings:')
@@ -169,17 +171,16 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
                 row = box_inner.row()
                 split = row.split(factor=0.4)
                 left_side = split.column(align=True)
-                left_side.alignment  = 'RIGHT'
+                left_side.alignment = 'RIGHT'
                 right_side = split.column()
                 left_side.label(text='dataref values:')
                 right_side.label(text=str(dataref_values))
 
-
                 left_side.label(text='axis rotation angles:')
                 right_side.label(text=f'{anim_angles}')
 
-            col = box_outer.column(align=False)
-            col.operator("xplane.switch_rotator_configure", text="Configure Animation")
+        col = box_outer.column(align=False)
+        col.operator("xplane.switch_rotator_configure", text="Configure Animation")
 
         box_outer = layout.box()
         row = box_outer.row()
@@ -207,8 +208,8 @@ class VIEW3D_PT_XPlaneSwitchUI(Panel):
                     box_inner.prop(manipulator.xplane.manip, "positive_command")
                     box_inner.prop(manipulator.xplane.manip, "negative_command")
 
-            #col = box_outer.column(align=False)
-            #col.operator("xplane.switch_manipulator_configure", text="Configure")
+            # col = box_outer.column(align=False)
+            # col.operator("xplane.switch_manipulator_configure", text="Configure")
 
 
 class OBJECT_OT_ConfigureSwitchRotator(bpy.types.Operator):
@@ -216,10 +217,97 @@ class OBJECT_OT_ConfigureSwitchRotator(bpy.types.Operator):
     bl_label = "Configure switch rotator animations"
     bl_options = {'REGISTER', 'UNDO'}
 
+    num_pos: IntProperty(
+        name="Number of positions",
+        description="The number of switch positions",
+        default=2,
+        soft_max=6,
+        max=20,
+        min=2
+    )
+
+    min_angle: FloatProperty(
+        name="Minimum angle",
+        description="The dataref value for minimum angle",
+        default=-20,
+        max=180.0,
+        min=-180.0
+    )
+    min_value: FloatProperty(
+        name="Minimum value",
+        description="The dataref value for minimum angle",
+        default=0,
+        max=1e6,
+        min=-1e6
+    )
+    max_angle: FloatProperty(
+        name="Maximum angle",
+        description="The maximum animation angle",
+        default=20,
+        max=180.0,
+        min=-180.0
+    )
+    max_value: FloatProperty(
+        name="Maximum value",
+        description="The dataref value for maximum angle",
+        default=1,
+        max=1e6,
+        min=-1e6
+    )
+
+    @classmethod
+    def poll(cls, context):
+        # need at least 2 objects selected and 1 active
+        return context.active_object is not None
+
+    def execute(self, context):
+        if context.active_object == None:
+            self.report({'INFO'}, 'No active object selected')
+            return {'FINISHED'}
+
+        locator, rotator_obj, manipulator = find_switch_components(context.active_object)
+
+        if rotator_obj is None:
+            self.report({'INFO'}, 'Unable to locate a rotator object')
+            return {'FINISHED'}
+
+        # set the rotation mode to axis and angle (defaults to 0 degrees about y)
+        rotator_obj.rotation_mode = 'AXIS_ANGLE'
+
+        if len(rotator_obj.xplane.datarefs) == 0:
+            rotator_obj.xplane.datarefs.add()
+
+        # clear the current animation frames
+        rotator_obj.animation_data_clear()
+
+        # the steps in angle and value
+        angle_step = (self.max_angle - self.min_angle) / (self.num_pos - 1)
+        value_step = (self.max_value - self.min_value) / (self.num_pos - 1)
+
+        # the initial angle and value
+        angle = self.min_angle
+        value = self.min_value
+
+        for i in range(1, self.num_pos + 1):
+            # set the axis rotation w value
+            rotator_obj.rotation_axis_angle[0] = radians(angle)
+            # add a keyframe for the angle component (index 0) at frame 3
+            rotator_obj.keyframe_insert(data_path="rotation_axis_angle", frame=i, index=0)
+
+            rotator_obj.xplane.datarefs[0].value = value
+            rotator_obj.keyframe_insert(data_path="xplane.datarefs[0].value", frame=i)
+
+            angle += angle_step
+            value += value_step
+
+        return {'FINISHED'}
+
+
 class OBJECT_OT_ConfigureSwitchManipulator(bpy.types.Operator):
     bl_idname = "xplane.switch_manipulator_configure"
     bl_label = "Configure switch rotator animations"
     bl_options = {'REGISTER', 'UNDO'}
+
 
 # Class List
 classes = (

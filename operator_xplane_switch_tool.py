@@ -229,7 +229,7 @@ class OBJECT_OT_ConfigureSwitchRotator(bpy.types.Operator):
     min_angle: FloatProperty(
         name="Minimum angle",
         description="The dataref value for minimum angle",
-        default=-20,
+        default=-25,
         max=180.0,
         min=-180.0
     )
@@ -243,7 +243,7 @@ class OBJECT_OT_ConfigureSwitchRotator(bpy.types.Operator):
     max_angle: FloatProperty(
         name="Maximum angle",
         description="The maximum animation angle",
-        default=20,
+        default=25,
         max=180.0,
         min=-180.0
     )
